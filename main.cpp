@@ -98,9 +98,22 @@ void vecAddCopyOutputDeviceArrayToHostArray(int * C,cl::Buffer buffer_C,
 
 void vecAddPrintTheResult(int * C, int size){
     //print out the result (on the host side)
+    printf("======================\n= Vector Addition\n");
     std::cout<<" result: \n";
     for(int i=0;i<size;i++){
         std::cout<<C[i]<<" ";
+    }
+}
+
+void vecAddPrintTheResultForTwoDevices(int * C1,int * C2,int halfOhTheSize){
+    //print out the result (on the host side)
+    printf("======================\n= Vector Addition\n");
+    std::cout<<" result: \n";
+    for(int i=0;i<halfOhTheSize;i++){
+        std::cout<<C1[i]<<" ";
+    }
+    for(int i=0;i<halfOhTheSize;i++){
+        std::cout<<C2[i]<<" ";
     }
 }
 
@@ -137,9 +150,22 @@ void bitCompressionCopyOutputDeviceArrayToHostArray(cl_uint * C,cl::Buffer buffe
 
 void bitCompressionPrintTheResult(cl_uint * C, int size){
     //print out the result (on the host side)
+    printf("======================\n= Bit Compression Done\n");
     std::cout<<" result: \n";
     for(int i=0;i<size;i++){
         std::cout<<C[i]<<" ";
+    }
+}
+
+void bitCompressionPrintTheResultForTwoDevices(cl_uint *output1, cl_uint *output2,int halfOfTheSize){
+    //print out the result (on the host side)
+    printf("======================\n= Bit Compression Done\n");
+    std::cout<<" result: \n";
+    for(int i=0;i<halfOfTheSize;i++){
+        std::cout<<output1[i]<<" ";
+    }
+    for(int i=0;i<halfOfTheSize;i++){
+        std::cout<<output2[i]<<" ";
     }
 }
 
@@ -177,6 +203,7 @@ void matMulCopyOutputDeviceArrayToHostArray(int * C,cl::Buffer buffer_C,
 
 void matMulPrintTheResult(int * input1, int *input2, int * output, int size, int width){
     //print out the result (on the host side)
+    printf("======================\n= Matrix Multiplication Done\n");
     unsigned int check = 1;
     for(unsigned int i = 0; i < size; ++i) {
         int sum = 0;
@@ -188,6 +215,43 @@ void matMulPrintTheResult(int * input1, int *input2, int * output, int size, int
         if(output[i] != sum) {
             check = 0;
             printf("= fail at %d, expected %d / actual %d\n", i, sum, output[i]);
+            break;
+        }
+    }
+    printf("======================\n");
+    printf("Result check: %s\n", check ? "OK" : "FAIL");
+}
+
+void  matMulPrintTheResultOnTwoDevices(int * input1device1,int * input1device2,
+                                       int * input2device1,int * input2device2,
+                                       int * output1,int * output2,
+                                       int halfSizeOfTheMatrix,int newWidth){
+    //print out the result (on the host side)
+    printf("======================\n= Matrix Multiplication Done\n");
+    unsigned int check = 1;
+    for(unsigned int i = 0; i < halfSizeOfTheMatrix; ++i) {
+        int sum = 0;
+        int x = i % newWidth;
+        int y = i / newWidth;
+        for(unsigned int k = 0; k < newWidth; ++k)
+            sum += input1device1[y * newWidth + k] * input2device1[k * newWidth +  x];
+        
+        if(output1[i] != sum) {
+            check = 0;
+            printf("= fail at %d, expected %d / actual %d\n", i, sum, output1[i]);
+            break;
+        }
+    }
+    for(unsigned int i = 0; i < halfSizeOfTheMatrix; ++i) {
+        int sum = 0;
+        int x = i % newWidth;
+        int y = i / newWidth;
+        for(unsigned int k = 0; k < newWidth; ++k)
+            sum += input1device2[y * newWidth + k] * input2device2[k * newWidth +  x];
+        
+        if(output1[i] != sum) {
+            check = 0;
+            printf("= fail at %d, expected %d / actual %d\n", i, sum, output2[i]);
             break;
         }
     }
@@ -293,6 +357,53 @@ void linRegPrintTheResult(float * input1, float *input2, float *alpha, float *be
     printf("======================\n");
     printf("Result check: %s\n", check ? "OK" : "FAIL");
     free(output2);
+}
+
+void  linRegPrintTheResultTwoDevices(float * input1device1,float * input1device2,
+                                     float * input2device1,float * input2device2,
+                                     float * alpha1,float * alpha2,
+                                     float * beta1, float * beta2,
+                                     float * output1,float * output2,
+                                     int halfOfTheSize){
+    //print out the result (on the host side)
+    printf("======================\n= Linear Regression Done\n");
+    float* outputNew1 = (float *)malloc(sizeof(float) * halfOfTheSize);
+    float* outputNew2 = (float *)malloc(sizeof(float) * halfOfTheSize);
+    for(unsigned int j = 0; j < halfOfTheSize; ++j) {
+        const int gid = j;
+        float a = alpha1[gid];
+        float b = beta1[gid];
+        float error = 0;
+        for(int i=0; i<halfOfTheSize; i++) {
+            float e = (a * input1device1[i] + b) - input2device1[i];
+            error += e * e;
+        }
+        outputNew1[gid] = error;
+    }
+    
+    bool check = compare_float(output1, outputNew1, halfOfTheSize, 0.000001);
+    
+    bool check2=false;
+    if (check){
+        for(unsigned int j = 0; j < halfOfTheSize; ++j) {
+            const int gid = j;
+            float a = alpha2[gid];
+            float b = beta2[gid];
+            float error = 0;
+            for(int i=0; i<halfOfTheSize; i++) {
+                float e = (a * input1device2[i] + b) - input2device2[i];
+                error += e * e;
+            }
+            outputNew2[gid] = error;
+        }
+        check2 = compare_float(output2, outputNew2, halfOfTheSize, 0.000001);
+        
+    }
+    
+    printf("======================\n");
+    printf("Result check: %s\n", check2 ? "OK" : "FAIL");
+    free(outputNew1);
+    free(outputNew2);
 }
 
 //*****************************
@@ -506,7 +617,6 @@ void convolutionPrintTheResult(int * input, int * mask, int * output, int width,
 }
 
 
-
 //****************************************************
 //                 Programs
 //****************************************************
@@ -514,62 +624,7 @@ void convolutionPrintTheResult(int * input, int * mask, int * output, int width,
 //*****************************
 //        Vec-Add
 //*****************************
-void vecAddRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code=
-    "__kernel void vec_add(__global int* input1, __global int* input2, __global int* output, int num_elements) {"
-    "    int gid = get_global_id(0);"
-    "   if (gid >= num_elements) return;"
-    "    output[gid] = (input1[gid] + input2[gid])/2;"
-    "}";
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-    int* A = (int*)malloc(sizeof(int) * size);
-    int* B= (int*)malloc(sizeof(int) * size);
-    for(int i=0; i < size; ++i) {
-        A[i] = i;
-        B[i] = i*2;
-    }
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(int)*size);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(int)*size);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(int)*size);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    vecAddCopyInputHostArrayToDeviceArray(A,B,buffer_A,buffer_B,queue,size);
-    
-    cl::Kernel kernel_add=cl::Kernel(program,"vec_add");
-    vecAddRunTheKernel(kernel_add,program,buffer_A,buffer_B,buffer_C,queue,size);
-    
-    int* C = (int*)malloc(sizeof(int) * size);
-    vecAddCopyOutputDeviceArrayToHostArray(C,buffer_C,queue,size);
-    
-    vecAddPrintTheResult(C,size);
-    
-    free(A);
-    free(B);
-    free(C);
-}
-
-void vecAddRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void vecAddRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -623,103 +678,110 @@ void vecAddRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
     free(C);
 }
 
+void vecAddRunAKernelOnTwoDevices(cl_device_type type, int size){
+    std::vector<cl::Platform> all_platforms;
+    cl::Platform default_platform=getADefaultPlatform(all_platforms);
+    
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
+    
+    //CPU and GPU share the same context
+    cl::Context context(type);
+    
+    cl::Program::Sources sources;
+    
+    //TODO: why do we need to devide it to two?????
+    std::string kernel_code=    "__kernel void vec_add(__global int* input1, __global int* input2, __global int* output, int num_elements) {"
+    "    int gid = get_global_id(0);"
+    "   if (gid >= num_elements) return;"
+    "    output[gid] = (input1[gid] + input2[gid])/2;"
+    "}";
+    
+    sources.push_back({kernel_code.c_str(),kernel_code.length()});
+    
+    //two differnet programs to each of the devices
+    cl::Program program1(context,sources);
+    cl::Program program2(context,sources);
+    
+    programBuild(devices[0], program1);
+    programBuild(devices[1], program2);
+    
+    //define Buffer names
+    //1.on Host
+    int halfOhTheSize=size/2;
+    int* A1 = (int*)malloc(sizeof(int) * halfOhTheSize);
+    int* A2 = (int*)malloc(sizeof(int) * halfOhTheSize);
+    int* B1 = (int*)malloc(sizeof(int) * halfOhTheSize);
+    int* B2 = (int*)malloc(sizeof(int) * halfOhTheSize);
+    for(int i=0; i < halfOhTheSize; ++i) {
+        A1[i] = i;
+        A2[i] = i+halfOhTheSize;
+        B1[i] = i*2;
+        B2[i] = (i+halfOhTheSize)*2;
+    }
+    if((size%2)!= 0){
+        // TODO!!
+    }
+
+    //2. on Device
+    cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
+    
+    //create queue to which we will push commands for the device.
+    cl::CommandQueue queue1(context,devices[0]);
+    cl::CommandQueue queue2(context,devices[1]);
+    
+    vecAddCopyInputHostArrayToDeviceArray(A1,B1,buffer_A1,buffer_B1,queue1,halfOhTheSize);
+    vecAddCopyInputHostArrayToDeviceArray(A2,B2,buffer_A2,buffer_B2,queue2,halfOhTheSize);
+    
+    cl::Kernel kernel_add_device1=cl::Kernel(program1,"vec_add");
+    cl::Kernel kernel_add_device2=cl::Kernel(program2,"vec_add");
+    
+    vecAddRunTheKernel(kernel_add_device1,program1,buffer_A1,buffer_B1,buffer_C1,queue1,halfOhTheSize);
+    vecAddRunTheKernel(kernel_add_device2,program2,buffer_A2,buffer_B2,buffer_C2,queue2,halfOhTheSize);
+    
+    int* C1= (int*)malloc(sizeof(int) * halfOhTheSize);
+    int* C2= (int*)malloc(sizeof(int) * halfOhTheSize);
+    
+    vecAddCopyOutputDeviceArrayToHostArray(C1,buffer_C1,queue1,halfOhTheSize);
+    vecAddCopyOutputDeviceArrayToHostArray(C2,buffer_C2,queue2,halfOhTheSize);
+    
+    vecAddPrintTheResultForTwoDevices(C1,C2,halfOhTheSize);
+    
+    free(A1);
+    free(A2);
+    free(B1);
+    free(B2);
+    free(C1);
+    free(C2);
+}
 
 void vecAdd(int size){
     std::cout<<" Run on one default device: \n";
-    vecAddRunAKernelOnOneDefaultDevice(size);
+    vecAddRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one CPU device: \n";
-    vecAddRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    vecAddRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    vecAddRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    vecAddRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
+    std::cout<<" \n\n";
+    
+    std::cout<<" Run on two devices with 50%-50%: \n";
+    vecAddRunAKernelOnTwoDevices(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
 }
 
 //*****************************
 //        Bit-Compression
 //*****************************
-
-void bitCompressionRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code=
-    "__kernel void bit_compression(__global uint4* input, __global uint* num_bits, __global uint* output, int length) {"
-      "  int gid = get_global_id(0);"
-        "if(gid >= length) return;"
-        
-      "  uint4 in = input[gid];"
-       " int bits = num_bits[gid];"
-      "  uint tmp = 0;"
-      "  if (bits == 2) {"
-       "     tmp |= (in.x << (32-bits)) & 3221225472u;"
-          "  tmp |= (in.y << (28-bits)) &  805306368u;"
-       "     tmp |= (in.z << (24-bits)) &  201326592u;"
-        "    tmp |= (in.w << (20-bits)) &   50331648u;"
-      "  } else if (bits == 4) {"
-        "    tmp |= (in.x << (32-bits)) & 4026531840u;"
-          "  tmp |= (in.y << (28-bits)) &  251658240u;"
-        "    tmp |= (in.z << (24-bits)) &   15728640u;"
-          "  tmp |= (in.w << (20-bits)) &     983040u;"
-      "  } else if (bits == 8) {"
-        "    tmp |= (in.x << (32-bits)) & 4278190080u;"
-         "   tmp |= (in.y << (28-bits)) &   16711680u;"
-        "    tmp |= (in.z << (24-bits)) &      65280u;"
-        "    tmp |= (in.w << (20-bits)) &        255u;"
-       " }"
-       " output[gid] = tmp;"
-    "}";
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-    
-    cl_uint* num_bits = (cl_uint*) malloc(sizeof(cl_uint) * size);
-    cl_uint4* input = (cl_uint4*) malloc(sizeof(cl_uint4) * size);
-    for (cl_uint i = 0; i < size; ++i) {
-        input[i] = (cl_uint4){15, 15, 15, 15};
-        num_bits[i] = (int)pow(2, ((i % 3) + 1));
-    }
-    
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(cl_uint4)*size);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*size);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*size);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    bitCompressionCopyInputHostArrayToDeviceArray(input,num_bits,buffer_A,buffer_B,queue,size);
-    
-    cl::Kernel bit_compression=cl::Kernel(program,"bit_compression");
-    bitCompressionRunTheKernel(bit_compression,program,buffer_A,buffer_B,buffer_C,queue,size);
-    
-    cl_uint* output = (cl_uint*) malloc(sizeof(cl_uint) * size);
-    bitCompressionCopyOutputDeviceArrayToHostArray(output,buffer_C,queue,size);
-    
-    bitCompressionPrintTheResult(output,size);
-    
-    free(num_bits);
-    free(input);
-    free(output);
-}
-
-void bitCompressionRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void bitCompressionRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -795,93 +857,126 @@ void bitCompressionRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
     free(output);
 }
 
+void bitCompressionRunAKernelOnTwoDevices(cl_device_type type, int size){
+    std::vector<cl::Platform> all_platforms;
+    cl::Platform default_platform=getADefaultPlatform(all_platforms);
+    
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
+    
+    //The devices share a context
+    cl::Context context(type);
+    
+    cl::Program::Sources sources;
+    
+    std::string kernel_code=    "__kernel void bit_compression(__global uint4* input, __global uint* num_bits, __global uint* output, int length) {"
+    "  int gid = get_global_id(0);"
+    "if(gid >= length) return;"
+    
+    "  uint4 in = input[gid];"
+    " int bits = num_bits[gid];"
+    "  uint tmp = 0;"
+    "  if (bits == 2) {"
+    "    tmp |= (in.x << (32-bits)) & 3221225472u;"
+    "    tmp |= (in.y << (28-bits)) &  805306368u;"
+    "    tmp |= (in.z << (24-bits)) &  201326592u;"
+    "    tmp |= (in.w << (20-bits)) &   50331648u;"
+    "  } else if (bits == 4) {"
+    "    tmp |= (in.x << (32-bits)) & 4026531840u;"
+    "    tmp |= (in.y << (28-bits)) &  251658240u;"
+    "    tmp |= (in.z << (24-bits)) &   15728640u;"
+    "    tmp |= (in.w << (20-bits)) &     983040u;"
+    "  } else if (bits == 8) {"
+    "    tmp |= (in.x << (32-bits)) & 4278190080u;"
+    "    tmp |= (in.y << (28-bits)) &   16711680u;"
+    "    tmp |= (in.z << (24-bits)) &      65280u;"
+    "    tmp |= (in.w << (20-bits)) &        255u;"
+    " }"
+    " output[gid] = tmp;"
+    "}";
+    
+    sources.push_back({kernel_code.c_str(),kernel_code.length()});
+    
+    cl::Program program1(context,sources);
+    cl::Program program2(context,sources);
+    
+    programBuild(devices[0], program1);
+    programBuild(devices[1], program2);
+    
+    //define Buffer names
+    //1.on Host
+    int halfOfTheSize=size/2;
+    cl_uint* num_bits1 = (cl_uint*) malloc(sizeof(cl_uint) * halfOfTheSize);
+    cl_uint* num_bits2 = (cl_uint*) malloc(sizeof(cl_uint) * halfOfTheSize);
+    cl_uint4* input1 = (cl_uint4*) malloc(sizeof(cl_uint4) * halfOfTheSize);
+    cl_uint4* input2 = (cl_uint4*) malloc(sizeof(cl_uint4) * halfOfTheSize);
+    for (cl_uint i = 0; i < halfOfTheSize; ++i) {
+        input1[i] = (cl_uint4){15, 15, 15, 15};
+        input2[i] = (cl_uint4){15, 15, 15, 15};
+        num_bits1[i] = (int)pow(2, ((i % 3) + 1));
+        num_bits2[i] = (int)pow(2, (((i+halfOfTheSize) % 3) + 1));
+    }
+    
+    //2. on Device
+    cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(cl_uint4)*halfOfTheSize);
+    cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(cl_uint4)*halfOfTheSize);
+    cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*halfOfTheSize);
+    cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*halfOfTheSize);
+    cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*halfOfTheSize);
+    cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(cl_uint)*halfOfTheSize);
+    
+    //create queue to which we will push commands for the device.
+    cl::CommandQueue queue1(context,devices[0]);
+    cl::CommandQueue queue2(context,devices[1]);
+    
+    bitCompressionCopyInputHostArrayToDeviceArray(input1,num_bits1,buffer_A1,buffer_B1,queue1,halfOfTheSize);
+     bitCompressionCopyInputHostArrayToDeviceArray(input2,num_bits2,buffer_A2,buffer_B2,queue2,halfOfTheSize);
+    
+    cl::Kernel bit_compression_1=cl::Kernel(program1,"bit_compression");
+    cl::Kernel bit_compression_2=cl::Kernel(program2,"bit_compression");
+    
+    bitCompressionRunTheKernel(bit_compression_1,program1,buffer_A1,buffer_B1,buffer_C1,queue1,halfOfTheSize);
+    bitCompressionRunTheKernel(bit_compression_2,program2,buffer_A2,buffer_B2,buffer_C2,queue2,halfOfTheSize);
+    
+    cl_uint* output1 = (cl_uint*) malloc(sizeof(cl_uint) * halfOfTheSize);
+    cl_uint* output2 = (cl_uint*) malloc(sizeof(cl_uint) * halfOfTheSize);
+    
+    bitCompressionCopyOutputDeviceArrayToHostArray(output1,buffer_C1,queue1,halfOfTheSize);
+    bitCompressionCopyOutputDeviceArrayToHostArray(output2,buffer_C2,queue2,halfOfTheSize);
+    
+    bitCompressionPrintTheResultForTwoDevices(output1, output2,halfOfTheSize);
+    
+    free(num_bits1);
+    free(num_bits2);
+    free(input1);
+    free(input2);
+    free(output1);
+    free(output2);
+}
+
 
 void bitCompression(int size){
     std::cout<<" Run on one default device: \n";
-    bitCompressionRunAKernelOnOneDefaultDevice(size);
+    bitCompressionRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
 
     std::cout<<" Run on one CPU device: \n";
-    bitCompressionRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    bitCompressionRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    bitCompressionRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    bitCompressionRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
+    std::cout<<" \n\n";
+    
+    std::cout<<" Run on two devices with 50%-50%: \n";
+    bitCompressionRunAKernelOnTwoDevices(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
 }
 
 //*****************************
 //        Mat-Mul
 //*****************************
-
-void matMulRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code="__kernel void mat_mul(__global int* input1, __global int* input2, __global int* output, int num_elements, int width) {"
-        "int gid = get_global_id(0);"
-        "if (gid >= num_elements) return;"
-        "int tx = gid % width;"
-        "int ty = gid / width;"
-        "int sum = 0; "
-        "for (int k = 0; k < width; ++k) {"
-           "sum += input1[ty * width + k] * input2[k * width + tx];"
-         "}"
-        "output[gid] = sum;"
-        "}";
-    
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-    
-    int width = (int)floor(sqrt(size));
-    int sizeOfTheMatrix = width * width;
-    
-    int* input1 = (int*)malloc(sizeof(int) * sizeOfTheMatrix);
-    int* input2 = (int*) malloc(sizeof(int) * sizeOfTheMatrix);
-    
-    for(int i=0; i < sizeOfTheMatrix; ++i) {
-        input1[i] = i;
-        input2[i] = i; 
-    }
-    
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfTheMatrix);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfTheMatrix);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfTheMatrix);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    matMulCopyInputHostArrayToDeviceArray(input1,input2,buffer_A,buffer_B,queue,sizeOfTheMatrix);
-    
-    cl::Kernel mat_mul=cl::Kernel(program,"mat_mul");
-    matMulRunTheKernel(mat_mul,program,buffer_A,buffer_B,buffer_C,queue,sizeOfTheMatrix,width);
-    
-    int* output = (int *)malloc(sizeof(int) * size);
-    matMulCopyOutputDeviceArrayToHostArray(output,buffer_C,queue,sizeOfTheMatrix);
-    
-    matMulPrintTheResult(input1,input2,output,sizeOfTheMatrix,width);
-    
-    free(input1);
-    free(input2);
-    free(output);
-}
-
-void matMulRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void matMulRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -941,23 +1036,120 @@ void matMulRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
     
     matMulPrintTheResult(input1,input2,output,sizeOfTheMatrix,width);
     
+    for(int i=0;i<size;i++){
+        std::cout<<output[i]<<" ";
+    }
+    
     free(input1);
     free(input2);
     free(output);
 }
 
+void matMulRunAKernelOnTwoDevices(cl_device_type type, int size){
+    std::vector<cl::Platform> all_platforms;
+    cl::Platform default_platform=getADefaultPlatform(all_platforms);
+    
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
+    
+    //The devices share a context
+    cl::Context context(type);
+    
+    cl::Program::Sources sources;
+    
+    std::string kernel_code="__kernel void mat_mul(__global int* input1, __global int* input2, __global int* output, int num_elements, int width) {"
+    "int gid = get_global_id(0);"
+    "if (gid >= num_elements) return;"
+    "int tx = gid % width;"
+    "int ty = gid / width;"
+    "int sum = 0; "
+    "for (int k = 0; k < width; ++k) {"
+    "sum += input1[ty * width + k] * input2[k * width + tx];"
+    "}"
+    "output[gid] = sum;"
+    "}";
+    
+    sources.push_back({kernel_code.c_str(),kernel_code.length()});
+    
+    cl::Program program1(context,sources);
+    cl::Program program2(context,sources);
+    
+    programBuild(devices[0], program1);
+    programBuild(devices[1], program2);
+    
+    //define Buffer names
+    //1.on Host
+    
+    int width = (int)floor(sqrt(size));
+    int sizeOfTheMatrix = width * width;
+    
+    int newWidth = width;
+    int halfSizeOfTheMatrix = size/2;
+    
+    int* input1device1 = (int*)malloc(sizeof(int) * halfSizeOfTheMatrix);
+    int* input1device2 = (int*)malloc(sizeof(int) * halfSizeOfTheMatrix);
+    int* input2device1 = (int*) malloc(sizeof(int) * halfSizeOfTheMatrix);
+    int* input2device2 = (int*) malloc(sizeof(int) * halfSizeOfTheMatrix);
+    
+    for(int i=0; i < halfSizeOfTheMatrix; ++i) {
+        input1device1[i] = i;
+        input1device2[i] = i+halfSizeOfTheMatrix;
+        input2device1[i] = i;
+        input2device2[i] = i+halfSizeOfTheMatrix;
+    }
+    
+    //2. on Device
+    cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(int)*halfSizeOfTheMatrix);
+    
+    //create queue to which we will push commands for the device.
+    cl::CommandQueue queue1(context,devices[0]);
+    cl::CommandQueue queue2(context,devices[1]);
+    
+    matMulCopyInputHostArrayToDeviceArray(input1device1,input2device1,buffer_A1,buffer_B1,queue1,halfSizeOfTheMatrix);
+    matMulCopyInputHostArrayToDeviceArray(input1device2,input2device2,buffer_A2,buffer_B2,queue2,halfSizeOfTheMatrix);
+    
+    cl::Kernel mat_mul_1=cl::Kernel(program1,"mat_mul");
+    cl::Kernel mat_mul_2=cl::Kernel(program2,"mat_mul");
+    
+    matMulRunTheKernel(mat_mul_1,program1,buffer_A1,buffer_B1,buffer_C1,queue1,halfSizeOfTheMatrix,newWidth);
+    matMulRunTheKernel(mat_mul_2,program2,buffer_A2,buffer_B2,buffer_C2,queue2,halfSizeOfTheMatrix,newWidth);
+    
+    int* output1 = (int *)malloc(sizeof(int) * halfSizeOfTheMatrix);
+    int* output2 = (int *)malloc(sizeof(int) * halfSizeOfTheMatrix);
+    
+    matMulCopyOutputDeviceArrayToHostArray(output1,buffer_C1,queue1,halfSizeOfTheMatrix);
+    matMulCopyOutputDeviceArrayToHostArray(output2,buffer_C2,queue2,halfSizeOfTheMatrix);
+    
+    matMulPrintTheResultOnTwoDevices(input1device1,input1device2, input2device1, input2device2,output1,output2,halfSizeOfTheMatrix,newWidth);
+    
+    free(input1device1);
+    free(input1device2);
+    free(input2device1);
+    free(input2device2);
+    free(output1);
+    free(output2);
+}
 
 void matMul(int size){
     std::cout<<" Run on one default device: \n";
-    matMulRunAKernelOnOneDefaultDevice(size);
+    matMulRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one CPU device: \n";
-    matMulRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    matMulRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    matMulRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    matMulRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
+    std::cout<<" \n\n";
+    
+    std::cout<<" Run on two devices with 50%-50%: \n";
+    matMulRunAKernelOnTwoDevices(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
 
 }
@@ -965,86 +1157,7 @@ void matMul(int size){
 //*****************************
 //        Lin-Reg
 //*****************************
-
-void linRegRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code="__kernel void lin_reg(__global float* input1, __global float* input2, __global float* alpha, __global float* beta, __global float* output, int num_elements) {"
-        "int gid = get_global_id(0);"
-        "if (gid >= num_elements) return;"
-        
-        "float a = alpha[gid];"
-        "float b = beta[gid];"
-        "float error = 0;"
-        
-       " for(int i=0; i<num_elements; i++)"
-        "{"
-            "float e = (a * input1[i] + b) - input2[i];"
-            "error += e * e;"
-        "}"
-        "output[gid] = error;"
-       "}";
-    
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-
-    float* input1 = (float*) malloc(sizeof(float) * size);
-    float* input2 = (float*) malloc(sizeof(float) * size);
-    float* alpha  = (float*) malloc(sizeof(float) * size);
-    float* beta   = (float*) malloc(sizeof(float) * size);
-    
-    fill_random_float(input2, size, 1, -1.0f, 1.0f);
-    qsort(input2, size, sizeof(float), float_compare);
-    float step = 2.0f / size;
-    for(int i=0; i < size; i++)
-        input1[i] = -1.0f + i * step;
-    
-    fill_random_float(alpha, size, 1, -1.0f, 1.0f);
-    fill_random_float(beta, size, 1, -1.0f, 1.0f);
-    
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(float)*size);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(float)*size);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(float)*size);
-    cl::Buffer buffer_D(context,CL_MEM_READ_WRITE,sizeof(float)*size);
-    cl::Buffer buffer_E(context,CL_MEM_READ_WRITE,sizeof(float)*size);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    linRegCopyInputHostArrayToDeviceArray(input1,input2,alpha,beta,buffer_A,buffer_B,buffer_C,buffer_D,queue,size);
-    
-    cl::Kernel lin_reg=cl::Kernel(program,"lin_reg");
-    linRegRunTheKernel(lin_reg,program,buffer_A,buffer_B,buffer_C,buffer_D,buffer_E,queue,size);
-    
-    float* output = (float*) malloc(sizeof(float) * size);
-    linRegCopyOutputDeviceArrayToHostArray(output,buffer_E,queue,size);
-    
-    linRegPrintTheResult(input1,input2,alpha,beta,output,size);
-    
-    free(input1);
-    free(input2);
-    free(alpha);
-    free(beta);
-    free(output);
-}
-
-void linRegRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void linRegRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -1120,18 +1233,131 @@ void linRegRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
     free(output);
 }
 
+void linRegRunAKernelOnTwoDevices(cl_device_type type, int size){
+    std::vector<cl::Platform> all_platforms;
+    cl::Platform default_platform=getADefaultPlatform(all_platforms);
+    
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
+    
+    //The devices share a context
+    
+    cl::Context context(type);
+    
+    cl::Program::Sources sources;
+    
+    std::string kernel_code="__kernel void lin_reg(__global float* input1, __global float* input2, __global float* alpha, __global float* beta, __global float* output, int num_elements) {"
+    "int gid = get_global_id(0);"
+    "if (gid >= num_elements) return;"
+    
+    "float a = alpha[gid];"
+    "float b = beta[gid];"
+    "float error = 0;"
+    
+    " for(int i=0; i<num_elements; i++)"
+    "{"
+    "float e = (a * input1[i] + b) - input2[i];"
+    "error += e * e;"
+    "}"
+    "output[gid] = error;"
+    "}";
+    
+    sources.push_back({kernel_code.c_str(),kernel_code.length()});
+    
+    cl::Program program1(context,sources);
+    cl::Program program2(context,sources);
+    
+    programBuild(devices[0], program1);
+    programBuild(devices[1], program2);
+    
+    //define Buffer names
+    //1.on Host
+    
+    int halfOfTheSize=size/2;
+    
+    float* input1device1 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* input1device2 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* input2device1 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* input2device2 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* alpha1  = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* alpha2  = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* beta1   = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* beta2   = (float*) malloc(sizeof(float) * halfOfTheSize);
+    
+    fill_random_float(input2device1, halfOfTheSize, 1, -1.0f, 1.0f);
+    fill_random_float(input2device2, halfOfTheSize, 1, -1.0f, 1.0f);
+    qsort(input2device1, halfOfTheSize, sizeof(float), float_compare);
+    qsort(input2device2, halfOfTheSize, sizeof(float), float_compare);
+    float step = 2.0f / halfOfTheSize;
+    for(int i=0; i < halfOfTheSize; i++){
+        input1device1[i] = -1.0f + i * step;
+        input1device2[i] = -1.0f + (i+halfOfTheSize) * step;
+    }
+    
+    fill_random_float(alpha1, halfOfTheSize, 1, -1.0f, 1.0f);
+    fill_random_float(alpha2, halfOfTheSize, 1, -1.0f, 1.0f);
+    fill_random_float(beta1, halfOfTheSize, 1, -1.0f, 1.0f);
+    fill_random_float(beta2, halfOfTheSize, 1, -1.0f, 1.0f);
+    
+    //2. on Device
+    cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_D1(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_D2(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_E1(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    cl::Buffer buffer_E2(context,CL_MEM_READ_WRITE,sizeof(float)*halfOfTheSize);
+    
+    //create queue to which we will push commands for the device.
+    cl::CommandQueue queue1(context,devices[0]);
+    cl::CommandQueue queue2(context,devices[1]);
+    
+    linRegCopyInputHostArrayToDeviceArray(input1device1,input2device1,alpha1,beta1,buffer_A1,buffer_B1,buffer_C1,buffer_D1,queue1,halfOfTheSize);
+    linRegCopyInputHostArrayToDeviceArray(input1device2,input2device2,alpha2,beta2,buffer_A2,buffer_B2,buffer_C2,buffer_D2,queue2,halfOfTheSize);
+    
+    cl::Kernel lin_reg_1=cl::Kernel(program1,"lin_reg");
+    cl::Kernel lin_reg_2=cl::Kernel(program2,"lin_reg");
+    linRegRunTheKernel(lin_reg_1,program1,buffer_A1,buffer_B1,buffer_C1,buffer_D1,buffer_E1,queue1,halfOfTheSize);
+    linRegRunTheKernel(lin_reg_2,program2,buffer_A2,buffer_B2,buffer_C2,buffer_D2,buffer_E2,queue2,halfOfTheSize);
+    
+    float* output1 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    float* output2 = (float*) malloc(sizeof(float) * halfOfTheSize);
+    linRegCopyOutputDeviceArrayToHostArray(output1,buffer_E1,queue1,halfOfTheSize);
+    linRegCopyOutputDeviceArrayToHostArray(output2,buffer_E2,queue2,halfOfTheSize);
+    
+    linRegPrintTheResultTwoDevices(input1device1,input1device2,input2device1,input2device2,alpha1,alpha2,beta1,beta2,output1,output2,halfOfTheSize);
+    
+    free(input1device1);
+    free(input1device2);
+    free(input2device1);
+    free(input2device2);
+    free(alpha1);
+    free(alpha2);
+    free(beta1);
+    free(beta2);
+    free(output1);
+    free(output2);
+}
+
 
 void linReg(int size){
     std::cout<<" Run on one default device: \n";
-    linRegRunAKernelOnOneDefaultDevice(size);
+    linRegRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one CPU device: \n";
-    linRegRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    linRegRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    linRegRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    linRegRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
+    std::cout<<" \n\n";
+    
+    std::cout<<" Run on two devices with 50%-50%: \n";
+    linRegRunAKernelOnTwoDevices(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
 }
 
@@ -1140,7 +1366,7 @@ void linReg(int size){
 //*****************************
 
 /*
-void sobelFilterRunAKernelOnOneDefaultDevice(int size){
+void sobelFilterRunAKernelOnOneDevice(int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -1309,15 +1535,15 @@ void sobelFilterRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
 /*
 void sobelFilter(int size){
     std::cout<<" Run on one default device: \n";
-    sobelFilterRunAKernelOnOneDefaultDevice(size);
+    sobelFilterRunAKernelOnOneDeviceCL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
  
     std::cout<<" Run on one CPU device: \n";
-    sobelFilterRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    sobelFilterRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    sobelFilterRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    sobelFilterRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
     std::cout<<" \n\n";
  
   }
@@ -1328,89 +1554,8 @@ void sobelFilter(int size){
 //        Syr2k
 //*****************************
 
-
 //TODO: why does it work only till 12??
-
-void syr2kRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code="__kernel void syr2k(__global float *a, __global float *b, __global float *c, float alpha, float beta, int m, int n){"
-        "int j = get_global_id(0) % n;"
-        "int i = get_global_id(0) / n;"
-        
-        "if ((i < n))"
-        "{"
-            "c[get_global_id(0)] *= beta;"
-            
-            "int k;"
-            "float tmp = 0;"
-            "for(k = 0; k < m; k++)"
-            "{"
-               " tmp += alpha * a[i * m + k] * b[j * m + k] + alpha * b[i * m + k] * a[j * m + k];"
-            "}"
-            "c[get_global_id(0)] += tmp;"
-        "}"
-    "}";
-    
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-    
-    int width = (int)floor(sqrt(size));
-    int newSize = width * width;
-
-    float* input_a = (float*)malloc(sizeof(float) * newSize);
-    float* input_b = (float*)malloc(sizeof(float) * newSize);
-    float* output =  (float*)malloc(sizeof(float) * newSize);
-    
-    float ALPHA = 1;
-    float BETA = 1;
-    int M = width;
-    int N = width;
-    
-    for(int i=0; i < size; ++i) {
-        input_a[i] = i % 19;
-        input_b[i] = (size - i) % 17;
-        output[i] = i / M + 2;
-    }
-    
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(float)*newSize);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(float)*newSize);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(float)*newSize);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    syr2kCopyInputHostArrayToDeviceArray(input_a,input_b,output,buffer_A,buffer_B,buffer_C,queue,newSize);
-    
-    cl::Kernel syr2k1=cl::Kernel(program,"syr2k");
-    syr2kRunTheKernel(syr2k1,program,buffer_A,buffer_B,buffer_C,ALPHA,BETA,M,N,queue,newSize);
-    
-    syr2kCopyOutputDeviceArrayToHostArray(output,buffer_C,queue,newSize);
-    
-    syr2kPrintTheResult(input_a,input_b,ALPHA,BETA,M,N,output,newSize);
-    
-    free(input_a);
-    free(input_b);
-    free(output);
-}
-
-void syr2kRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void syr2kRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -1490,108 +1635,22 @@ void syr2kRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
 
 void syr2k(int size){
     std::cout<<" Run on one default device: \n";
-    syr2kRunAKernelOnOneDefaultDevice(size);
+    syr2kRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one CPU device: \n";
-    syr2kRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    syr2kRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    syr2kRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    syr2kRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
     std::cout<<" \n\n";
 }
 
 //*****************************
 //        Convolution
 //*****************************
-
-
-void convolutionRunAKernelOnOneDefaultDevice(int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    cl_device_type type=CL_DEVICE_TYPE_ALL;
-    cl::Device default_device=getOneDevice(default_platform,all_devices,type);
-    
-    cl::Context context({default_device});
-    
-    cl::Program::Sources sources;
-    
-    std::string kernel_code="__kernel void convolution(__global int* input, __constant int* mask, __global int* output, int num_elements, int width, int mask_width) {"
-        "int gid = get_global_id(0);"
-        "if (gid >= num_elements) return;"
-        "int tx = gid % width;"
-        "int ty = gid / width;"
-        "int offset = mask_width/2;"
-        "if (tx < offset || ty < offset || tx >= (width-offset) || ty >= (width-offset)) {"
-            "output[gid] = 0;"
-            "return;"
-        "}"
-        "int sum = 0;"
-        
-        "int tmpx = tx - offset;"
-        "int tmpy = ty - offset;"
-        "for (int r = 0; r < mask_width; ++r) {"
-            "for (int c = 0; c < mask_width; ++c) {"
-                "sum += mask[r * mask_width + c] * input[(tmpy + r ) * width + tmpx + c];"
-            "}"
-        "}"
-        "output[gid] = sum;"
-    "}";
-    
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    
-    cl::Program program(context,sources);
-    programBuild(default_device,program);
-    
-    //define Buffer names
-    //1.on Host
-    
-    int width = (int)floor(sqrt(size));
-    int newSize = width * width;
-  
-    int mask_width = 22;
-    int mask_size = mask_width * mask_width;
-    
-    int* input  = (int*)malloc(sizeof(int) * newSize);
-    int* mask   = (int*) malloc(sizeof(int) * mask_size);
-    int* output = (int*)malloc(sizeof(int) * newSize);
-    
-    for(int i=0; i < mask_size; ++i){
-       mask[i] = 1;
-    }
-    mask[mask_size/2] = 0;
-    
-    for(int i=0; i < newSize; ++i) {
-        input[i] = 1;//rand() % 10;
-    }
-    
-    //2. on Device
-    cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(int)*newSize);
-    cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(int)*newSize);
-    cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(int)*newSize);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context,default_device);
-    
-    convolutionCopyInputHostArrayToDeviceArray(input,mask,output,buffer_A,buffer_B,buffer_C,queue,newSize,mask_size);
-    
-    cl::Kernel convolution1=cl::Kernel(program,"convolution");
-    convolutionRunTheKernel(convolution1,program,buffer_A,buffer_B,buffer_C,width,mask_width,queue,newSize);
-    
-    convolutionCopyOutputDeviceArrayToHostArray(output,buffer_C,queue,newSize);
-    
-    convolutionPrintTheResult(input,mask,output,width,mask_width,newSize);
-    
-    free(input);
-    free(mask);
-    free(output);
-}
-
-void convolutionRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
+void convolutionRunAKernelOnOneDevice(cl_device_type type, int size){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
     
@@ -1675,44 +1734,60 @@ void convolutionRunAKernelOnOneCPUORGPUDevice(cl_device_type type, int size){
 
 
 void convolution(int size){
+    
     std::cout<<" Run on one default device: \n";
-    convolutionRunAKernelOnOneDefaultDevice(size);
+    convolutionRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
     
-    
     std::cout<<" Run on one CPU device: \n";
-    convolutionRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_CPU,size);
+    convolutionRunAKernelOnOneDevice(CL_DEVICE_TYPE_CPU,size);
     std::cout<<" \n\n";
     
     std::cout<<" Run on one GPU device: \n";
-    convolutionRunAKernelOnOneCPUORGPUDevice(CL_DEVICE_TYPE_GPU,size);
+    convolutionRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
     std::cout<<" \n\n";
-     
+    
 }
 
 //*****************************
 // Main Functions
 //*****************************
 
-void sixKernels(int size){
-    std::cout<<size<<" ";
-    //vecAdd(size);
-    //bitCompression(size);
-    //matMul(size);
-    //linReg(size);
+void sixKernels(int size, int programmNumber){
+    //std::cout<<size<<" ";
+    if (programmNumber==1)
+       vecAdd(size);
+    else if (programmNumber==2)
+        bitCompression(size);
+    else if (programmNumber==3)
+       matMul(size);
+    else if (programmNumber==4)
+       linReg(size);
+    else if (programmNumber==5)
+       syr2k(size);
+    else
+      convolution(size);
     
     //TODO!!
     //sobelFilter(size);
-    
-    //syr2k(size);
-    convolution(size);
 }
 
 
 
 int main(int argc, char* argv[]){
     
-    int size;
+    int size, programmNumber;
+    
+    cout << "Enter the program number that you would like to test now:  \n";
+    cout << "1. Vector Addition \n";
+    cout << "2. Bit Compression \n";
+    cout << "3. Matrix Multiplication \n";
+    cout << "4. Linear Regession \n";
+    cout << "5. Syr2k \n";
+    cout << "6. Convolution \n";
+
+    cin >> programmNumber; // input the program number
+    std::cout<<" \n";
     
     cout << "Enter the size: ";
     cin >> size; // input the size of the input for each kernel
@@ -1720,7 +1795,7 @@ int main(int argc, char* argv[]){
     
     //std::cout<<size<<" ";
     
-    sixKernels(size);
+    sixKernels(size,programmNumber);
     
     std::cout<<" \n";
     return 0;
