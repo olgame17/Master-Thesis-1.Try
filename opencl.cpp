@@ -122,27 +122,29 @@ void vecAddPrintTheResult(int *A, int *B, int * C, int size){
 
 void vecAddPrintTheResultForTwoDevices(int * A1, int * A2,
                                        int * B1, int *B2,
-                                       int * C1,int * C2,int halfOhTheSize){
+                                       int * C1,int * C2,int size1, int size2){
     //print out the result (on the host side)
     printf("======================\n= Vector Addition Done\n");
     std::cout<<" result: \n";
-    for(int i=0;i<halfOhTheSize;i++){
+    for(int i=0;i<size1;i++){
         std::cout<<C1[i]<<" ";
     }
-    for(int i=0;i<halfOhTheSize;i++){
+    for(int i=0;i<size2;i++){
         std::cout<<C2[i]<<" ";
     }
     
     printf("\n");
     unsigned int check1 = 1, check2= 1;
     int sum1 = 0, sum2= 0;
-    for(unsigned int i = 0; i < halfOhTheSize; ++i) {
+    for(unsigned int i = 0; i < size1; ++i) {
         sum1=(A1[i]+B1[i])/2;
         if(C1[i] != sum1) {
             check1 = 0;
             printf("= fail at %d, expected %d / actual %d\n", i, sum1, C1[i]);
             break;
         }
+    }
+    for(unsigned int i = 0; i < size2; ++i) {
         sum2=(A2[i]+B2[i])/2;
         if(C2[i] != sum2) {
             check2 = 0;
@@ -821,88 +823,7 @@ void vecAddRunAKernelOnOneDevice(cl_device_type type, int size){
     free(C);
 }
 
-void vecAddRunAKernelOnTwoDevices(cl_device_type type, int size){
-    std::vector<cl::Platform> all_platforms;
-    cl::Platform default_platform=getADefaultPlatform(all_platforms);
-    
-    std::vector<cl::Device> all_devices;
-    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
-    
-    //CPU and GPU share the same context
-    cl::Context context(type);
-    
-    cl::Program::Sources sources;
-    
-    //TODO: why do we need to devide it to two?????
-    std::string kernel_code=    "__kernel void vec_add(__global int* input1, __global int* input2, __global int* output, int num_elements) {"
-    "    int gid = get_global_id(0);"
-    "   if (gid >= num_elements) return;"
-    "    output[gid] = (input1[gid] + input2[gid])/2;"
-    "}";
-    
-    sources.push_back({kernel_code.c_str(),kernel_code.length()});
-    
-    //two differnet programs to each of the devices
-    cl::Program program1(context,sources);
-    cl::Program program2(context,sources);
-    
-    programBuild(devices[0], program1);
-    programBuild(devices[1], program2);
-    
-    //define Buffer names
-    //1.on Host
-    int halfOhTheSize=size/2;
-    int* A1 = (int*)malloc(sizeof(int) * halfOhTheSize);
-    int* A2 = (int*)malloc(sizeof(int) * halfOhTheSize);
-    int* B1 = (int*)malloc(sizeof(int) * halfOhTheSize);
-    int* B2 = (int*)malloc(sizeof(int) * halfOhTheSize);
-    for(int i=0; i < halfOhTheSize; ++i) {
-        A1[i] = i;
-        A2[i] = i+halfOhTheSize;
-        B1[i] = i*2;
-        B2[i] = (i+halfOhTheSize)*2;
-    }
-    if((size%2)!= 0){
-        // TODO!!
-    }
-
-    //2. on Device
-    cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(int)*halfOhTheSize);
-    
-    //create queue to which we will push commands for the device.
-    cl::CommandQueue queue1(context,devices[0]);
-    cl::CommandQueue queue2(context,devices[1]);
-    
-    vecAddCopyInputHostArrayToDeviceArray(A1,B1,buffer_A1,buffer_B1,queue1,halfOhTheSize,0);
-    vecAddCopyInputHostArrayToDeviceArray(A2,B2,buffer_A2,buffer_B2,queue2,halfOhTheSize,0);
-    
-    cl::Kernel kernel_add_device1=cl::Kernel(program1,"vec_add");
-    cl::Kernel kernel_add_device2=cl::Kernel(program2,"vec_add");
-    
-    vecAddRunTheKernel(kernel_add_device1,program1,buffer_A1,buffer_B1,buffer_C1,queue1,halfOhTheSize,0);
-    vecAddRunTheKernel(kernel_add_device2,program2,buffer_A2,buffer_B2,buffer_C2,queue2,halfOhTheSize,0);
-    
-    int* C1= (int*)malloc(sizeof(int) * halfOhTheSize);
-    int* C2= (int*)malloc(sizeof(int) * halfOhTheSize);
-    
-    vecAddCopyOutputDeviceArrayToHostArray(C1,buffer_C1,queue1,halfOhTheSize,0);
-    vecAddCopyOutputDeviceArrayToHostArray(C2,buffer_C2,queue2,halfOhTheSize,0);
-    
-    vecAddPrintTheResultForTwoDevices(A1,A2,B1,B2,C1,C2,halfOhTheSize);
-    
-    free(A1);
-    free(A2);
-    free(B1);
-    free(B2);
-    free(C1);
-    free(C2);
-}
-
+//1. 1D: copy
 void vecAddRunAKernelOnTwoDevicesSecondVersion(cl_device_type type, int size, double prozent){
     std::vector<cl::Platform> all_platforms;
     cl::Platform default_platform=getADefaultPlatform(all_platforms);
@@ -977,8 +898,148 @@ void vecAddRunAKernelOnTwoDevicesSecondVersion(cl_device_type type, int size, do
     free(C);
 }
 
+void vecAddRunAKernelOnTwoDevicesThirdVersion(cl_device_type type,int size,
+                                              double percentage,int descriptor){
+    //find+define a platform
+    std::vector<cl::Platform> all_platforms;
+    cl::Platform default_platform=getADefaultPlatform(all_platforms);
+    
+    //find+define a device (or devices)
+    std::vector<cl::Device> all_devices;
+    std::vector<cl::Device> devices=getTwoDevices(default_platform,all_devices);
+    
+    //define a context (CPU and GPU share the same context)
+    cl::Context context(type);
+    
+    cl::Program::Sources sources;
+    
+    //TODO: why do we need to devide it to two?????
+    std::string kernel_code=    "__kernel void vec_add(__global int* input1, __global int* input2, __global int* output, int num_elements) {"
+    "    int gid = get_global_id(0);"
+    "   if (gid >= num_elements) return;"
+    "    output[gid] = (input1[gid] + input2[gid])/2;"
+    "}";
+    
+    sources.push_back({kernel_code.c_str(),kernel_code.length()});
+    
+    //define two programs
+    //two differnet programs to each of the devices
+    cl::Program program1(context,sources);
+    cl::Program program2(context,sources);
+    
+    programBuild(devices[0], program1);
+    programBuild(devices[1], program2);
+    
+    //define a two command queues
+    //create queue to which we will push commands for the device.
+    cl::CommandQueue queue1(context,devices[0]);
+    cl::CommandQueue queue2(context,devices[1]);
+    
+    
+    //-----------till here is the same for both descriptors!!!!-----------
+    
+    //----------now we need to know descriptor + percentage------------
+    
+    int sizeOfFirstDevice=(int)size*percentage;
+    int sizeOfSecondDevice=size-sizeOfFirstDevice;
 
-void vecAdd(int size){
+    std::cout<<"sizeOfFirstDevice: "<< sizeOfFirstDevice <<endl;
+    std::cout<<"sizeOfSecondDevice: "<< sizeOfSecondDevice <<endl;
+    
+    //1. 1D: copy
+    if(descriptor==1){
+      //define Buffer names
+      //1.on Host
+      int offset1=0;
+      int offset2=sizeOfFirstDevice;
+
+      int* A = (int*)malloc(sizeof(int) * size);
+      int* B= (int*)malloc(sizeof(int) * size);
+      for(int i=0; i < size; ++i) {
+        A[i] = i;
+        B[i] = i*2;
+      }
+    
+      //2. on Device
+      cl::Buffer buffer_A(context,CL_MEM_READ_WRITE,sizeof(int)*size);
+      cl::Buffer buffer_B(context,CL_MEM_READ_WRITE,sizeof(int)*size);
+      cl::Buffer buffer_C(context,CL_MEM_READ_WRITE,sizeof(int)*size);
+    
+      vecAddCopyInputHostArrayToDeviceArray(A,B,buffer_A,buffer_B,queue1,size,offset1);
+      vecAddCopyInputHostArrayToDeviceArray(A,B,buffer_A,buffer_B,queue2,size,offset2);
+    
+      cl::Kernel kernel_add_device1=cl::Kernel(program1,"vec_add");
+      cl::Kernel kernel_add_device2=cl::Kernel(program2,"vec_add");
+    
+      vecAddRunTheKernel(kernel_add_device1,program1,buffer_A,buffer_B,buffer_C,queue1,size,offset1);
+      vecAddRunTheKernel(kernel_add_device2,program2,buffer_A,buffer_B,buffer_C,queue2,size,offset2);
+    
+      int* C= (int*)malloc(sizeof(int) * size);
+      vecAddCopyOutputDeviceArrayToHostArray(C,buffer_C,queue1,size,offset1);
+      vecAddCopyOutputDeviceArrayToHostArray(C,buffer_C,queue2,size,offset2);
+    
+      vecAddPrintTheResult(A,B,C,size);
+    
+      free(A);
+      free(B);
+      free(C);
+    }
+    
+    //2. 1D: range
+    if(descriptor==2){
+        //define Buffer names
+        //1.on Host
+        int* A1 = (int*)malloc(sizeof(int) * sizeOfFirstDevice);
+        int* A2 = (int*)malloc(sizeof(int) * sizeOfSecondDevice);
+        int* B1 = (int*)malloc(sizeof(int) * sizeOfFirstDevice);
+        int* B2 = (int*)malloc(sizeof(int) * sizeOfSecondDevice);
+        for(int i=0; i < sizeOfFirstDevice; ++i) {
+            A1[i] = i;
+            A2[i] = i+sizeOfFirstDevice;
+            B1[i] = i*2;
+            B2[i] = (i+sizeOfFirstDevice)*2;
+        }
+        for(int i=sizeOfFirstDevice; i < sizeOfSecondDevice; ++i) {
+            A2[i] = i+sizeOfFirstDevice;
+            B2[i] = (i+sizeOfFirstDevice)*2;
+        }
+        
+        //2. on Device
+        cl::Buffer buffer_A1(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfFirstDevice);
+        cl::Buffer buffer_A2(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfSecondDevice);
+        cl::Buffer buffer_B1(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfFirstDevice);
+        cl::Buffer buffer_B2(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfSecondDevice);
+        cl::Buffer buffer_C1(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfFirstDevice);
+        cl::Buffer buffer_C2(context,CL_MEM_READ_WRITE,sizeof(int)*sizeOfSecondDevice);
+        
+        vecAddCopyInputHostArrayToDeviceArray(A1,B1,buffer_A1,buffer_B1,queue1,sizeOfFirstDevice,0);
+        vecAddCopyInputHostArrayToDeviceArray(A2,B2,buffer_A2,buffer_B2,queue2,sizeOfSecondDevice,0);
+        
+        cl::Kernel kernel_add_device1=cl::Kernel(program1,"vec_add");
+        cl::Kernel kernel_add_device2=cl::Kernel(program2,"vec_add");
+        
+        vecAddRunTheKernel(kernel_add_device1,program1,buffer_A1,buffer_B1,buffer_C1,queue1,sizeOfFirstDevice,0);
+        vecAddRunTheKernel(kernel_add_device2,program2,buffer_A2,buffer_B2,buffer_C2,queue2,sizeOfSecondDevice,0);
+        
+        int* C1= (int*)malloc(sizeof(int) * sizeOfFirstDevice);
+        int* C2= (int*)malloc(sizeof(int) * sizeOfSecondDevice);
+        
+        vecAddCopyOutputDeviceArrayToHostArray(C1,buffer_C1,queue1,sizeOfFirstDevice,0);
+        vecAddCopyOutputDeviceArrayToHostArray(C2,buffer_C2,queue2,sizeOfSecondDevice,0);
+        
+        vecAddPrintTheResultForTwoDevices(A1,A2,B1,B2,C1,C2,sizeOfFirstDevice,sizeOfSecondDevice);
+        
+        free(A1);
+        free(A2);
+        free(B1);
+        free(B2);
+        free(C1);
+        free(C2);
+    }
+}
+
+
+void vecAdd(int size, int descriptor, double percentage){
     std::cout<<" Run on one default device: \n";
     vecAddRunAKernelOnOneDevice(CL_DEVICE_TYPE_ALL,size);
     std::cout<<" \n\n";
@@ -991,10 +1052,6 @@ void vecAdd(int size){
     vecAddRunAKernelOnOneDevice(CL_DEVICE_TYPE_GPU,size);
     std::cout<<" \n\n";
     
-    std::cout<<" Run on two devices with 50%-50%: \n";
-    vecAddRunAKernelOnTwoDevices(CL_DEVICE_TYPE_ALL,size);
-    std::cout<<" \n\n";
-    
     std::cout<<" Run on two devices with different prozent part of the input: \n";
     double prozent=0.1;
     for (int i=1; i<10; i++) {
@@ -1003,6 +1060,11 @@ void vecAdd(int size){
         prozent=prozent+0.1;
         std::cout<<" \n\n";
     }
+    
+    std::cout<<" One version to both descriptors: \n";
+    std::cout<<"Percentage: "<< percentage <<endl;
+    std::cout<<"Descriptor number: "<< descriptor <<endl;
+    vecAddRunAKernelOnTwoDevicesThirdVersion(CL_DEVICE_TYPE_ALL,size,percentage,descriptor);
 }
 
 //*****************************
@@ -2492,10 +2554,10 @@ void convolution(int size){
 // Main Functions
 //*****************************
 
-void sixKernels(int size, int programmNumber){
+void sixKernels(int size, int programmNumber, int descriptor, double percentage){
     //std::cout<<size<<" ";
     if (programmNumber==1)
-       vecAdd(size);
+       vecAdd(size,descriptor,percentage);
     else if (programmNumber==2)
         bitCompression(size);
     else if (programmNumber==3)
@@ -2515,7 +2577,8 @@ void sixKernels(int size, int programmNumber){
 
 int main(int argc, char* argv[]){
     
-    int size, programmNumber;
+    int size, programmNumber, descriptor;
+    double percentage;
     
     cout << "Enter the program number that you would like to test now:  \n";
     cout << "1. Vector Addition \n";
@@ -2533,8 +2596,19 @@ int main(int argc, char* argv[]){
     std::cout<<" \n";
     
     //std::cout<<size<<" ";
+    cout << "Enter the descriptor type that you would like to test now:  \n";
+    cout << "1. 1D: copy  ---- -> ----  ---- \n";
+    cout << "2. 1D: range ---- -> - --- \n";
+    cout << "3. 1D: range with halo ---- -> --- --- \n";
     
-    sixKernels(size,programmNumber);
+    cin >> descriptor; // input the descriptor type
+    std::cout<<" \n";
+    
+    cout << "Enter the percentage to devide the data between two devices: ";
+    cin >> percentage; // input the percentage
+    std::cout<<" \n";
+    
+    sixKernels(size,programmNumber,descriptor,percentage);
     
     std::cout<<" \n";
     return 0;
